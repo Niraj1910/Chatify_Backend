@@ -22,8 +22,8 @@ const UserSchema = new mongoose.Schema(
       type: String,
     },
     avatar: {
-      type: String,
-      default: "/default-avatar.jpg",
+      public_id: { type: String },
+      url: { type: String },
     },
   },
   { timestamps: true }

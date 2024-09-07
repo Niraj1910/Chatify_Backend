@@ -22,6 +22,7 @@ app.use(
 );
 app.use(express.static("public"));
 app.use(express.json());
+// app.use(express.urlencoded(true));
 app.use(cookieParser());
 
 const server = createServer(app);
