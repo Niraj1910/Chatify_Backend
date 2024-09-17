@@ -5,10 +5,14 @@ import {
   handleDeleteOldMedia,
   handleMediaUpload,
 } from "../Config/cloudinary.js";
+import { redisPublisher as redisClient } from "../Config/redis.js";
 
 const handleSignUp = async (req, res) => {
   console.log("req.file -> ", req.file);
   console.log("req.body -> ", req.body);
+
+  // delete the prev cache data
+  await redisClient.DEL("dbAllUsers");
 
   const registerData = req.body;
 
@@ -73,7 +77,16 @@ function handleLogoutUser(req, res) {
 
 const handlerGetAllUsers = async (req, res) => {
   try {
-    const allUsers = await UserModel.find({}, "-password -salt");
+    let allUsers = await redisClient.GET("dbAllUsers");
+
+    if (allUsers) {
+      return res.status(200).json(JSON.parse(allUsers));
+    }
+    allUsers = await UserModel.find({}, "-password -salt");
+
+    await redisClient.set("dbAllUsers", JSON.stringify(allUsers), {
+      EX: 24 * 60 * 60,
+    });
 
     return res.status(200).json(allUsers);
   } catch (error) {
@@ -101,6 +114,9 @@ const handlDecodeToken = (req, res) => {
 const handlUpdateUser = async (req, res) => {
   console.log("req.file", req.file);
   console.log("req.body", req.body);
+
+  // delete the prev cache data
+  await redisClient.DEL("dbAllUsers");
 
   try {
     const userId = req.params.id;
