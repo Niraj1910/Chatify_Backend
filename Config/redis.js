@@ -5,18 +5,31 @@ const redisPublisher = createClient({
   socket: {
     host: "redis-12087.c325.us-east-1-4.ec2.redns.redis-cloud.com",
     port: 12087,
+    connectTimeout: 10000, // Increase timeout to 10 seconds
   },
 }).on("error", (err) => console.log("Redis Publisher Error", err));
 const redisSubscriber = redisPublisher.duplicate();
 
 const connectRedis = async () => {
-  try {
-    await redisSubscriber.connect();
-    await redisPublisher.connect();
+  let retries = 5;
 
-    console.log(`Connected to Redis server`);
-  } catch (error) {
-    console.log(`could not connect to redis server:->`, error);
+  while (retries) {
+    try {
+      await redisSubscriber.connect();
+      await redisPublisher.connect();
+
+      console.log(`Connected to Redis server`);
+      break;
+    } catch (error) {
+      retries -= 1;
+      console.error(`Redis connection failed, retrying...`, error);
+
+      if (retries === 0) {
+        console.error("Could not connect to redis even after 5 retries");
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+    }
   }
 };
 

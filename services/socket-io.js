@@ -1,6 +1,5 @@
 import { Server } from "socket.io";
 import { handleCreateMessage } from "../Controller/messageController.js";
-import { handleCreateChat } from "../Controller/chatController.js";
 import { redisPublisher, redisSubscriber } from "../Config/redis.js";
 
 class SocketHandler {
@@ -9,107 +8,165 @@ class SocketHandler {
     this.Users = {};
     this.io.on("connection", (socket) => this.handleSocketConnection(socket));
 
-    this.subscribeToRedisChannel();
-  }
+    this.subscribeToRedisMessaagesChannel();
+    this.subscribeToRedisActiveUsersChannel();
+    this.subscribeToRedisOfflineUsersChannel();
 
-  async getAllOnlineUsersFromRedis() {
-    // get all user keys and values
-    const userKeys = await redisPublisher.KEYS("userID:*");
-    for (const userKey of userKeys) {
-      const socketId = await redisPublisher.GET(userKey);
-      this.Users[userKey.split(":")[1]] = socketId;
-    }
-  }
-
-  subscribeToRedisChannel() {
-    redisSubscriber.subscribe("chat_message", (message) => {
-      const msgDetails = JSON.parse(message);
-
-      this.broadCastMessage(msgDetails);
+    redisSubscriber.subscribe("call-req", (message) => {
+      const requestDetails = JSON.parse(message);
+      const { offer, sender, reciever, mediaType } = requestDetails;
+      this.io.emit(`call-req:${reciever}`, { sender, offer, mediaType });
     });
-  }
 
-  async broadCastMessage(msgDetails) {
-    console.log(`from broadcastMessage `, msgDetails);
+    redisSubscriber.subscribe("call-reject", (message) => {
+      const callStatus = JSON.parse(message);
+      this.io.emit(`call-reject:${callStatus.sender}`, false);
+    });
 
-    const socketIDs = await redisPublisher.MGET(
-      ...msgDetails.chat_users.map((userID) => `userID:${userID}`)
-    );
+    redisSubscriber.subscribe("call-accept", (message) => {
+      const answerDetails = JSON.parse(message);
 
-    if (socketIDs.length) {
-      this.io.to([...socketIDs.filter(Boolean)]).emit("chat-message", {
-        message: msgDetails.message,
-        sender_id: msgDetails.sender_id,
-        sender_avatar_url: msgDetails.sender_avatar_url,
-      });
-    }
+      this.io.emit(`call-accept:${answerDetails.sender}`, answerDetails.answer);
+    });
+
+    redisSubscriber.subscribe("call-end", (to) => {
+      to = JSON.parse(to);
+      this.io.emit(`call-end:${to}`);
+    });
+
+    redisSubscriber.subscribe("ice-candidate", (message) => {
+      const candidateDetails = JSON.parse(message);
+      this.io.emit(
+        `ice-candidate:${candidateDetails.to}`,
+        candidateDetails.candidate
+      );
+    });
   }
 
   handleSocketConnection(socket) {
     console.log(`A user connected to socket with the socket id: ${socket.id}`);
 
+    socket.on("call-req", (message) => {
+      redisPublisher.publish(
+        "call-req",
+        JSON.stringify({
+          offer: message.offer,
+          sender: message.sender,
+          reciever: message.reciever,
+          mediaType: message.mediaType,
+        })
+      );
+    });
+
+    socket.on("call-reject", (message) => {
+      redisPublisher.publish(
+        "call-reject",
+        JSON.stringify({
+          sender: message.sender,
+          status: false,
+        })
+      );
+    });
+
+    socket.on("call-accept", (message) => {
+      redisPublisher.publish(
+        "call-accept",
+        JSON.stringify({
+          answer: message.answer,
+          sender: message.sender,
+        })
+      );
+    });
+
+    socket.on("call-end", (to) => {
+      redisPublisher.publish("call-end", JSON.stringify(to));
+    });
+
+    socket.on("ice-candidate", (message) => {
+      redisPublisher.publish(
+        "ice-candidate",
+        JSON.stringify({
+          candidate: message.candidate,
+          to: message.to,
+        })
+      );
+    });
+
     socket.on("disconnect", () => this.handleSocketDisconnect(socket));
     socket.on("join", (userId) => this.handleSocketJoin(userId, socket));
-    socket.on("chat-msg", (msgDetails, callback) =>
+    socket.on("chat-message", (msgDetails, callback) =>
       this.handleSocketChatMessage(msgDetails, socket, callback)
     );
+  }
+
+  subscribeToRedisActiveUsersChannel() {
+    redisSubscriber.subscribe("ACTIVE-USERS", (user) => {
+      user = JSON.parse(user);
+
+      if (Object.entries(user).length) this.Users = { ...this.Users, ...user };
+
+      console.log("All connected users from handleSocketJoin -> ", this.Users);
+
+      this.io.emit("online-users", this.Users);
+    });
+  }
+
+  subscribeToRedisOfflineUsersChannel() {
+    redisSubscriber.subscribe("OFFLINE-USERS", (socketId) => {
+      for (const key in this.Users) {
+        if (this.Users[key] === socketId) {
+          delete this.Users[key];
+          break;
+        }
+      }
+      console.log(
+        "All connected users from handleSocketDisconnect -> ",
+        this.Users
+      );
+
+      this.io.emit("online-users", this.Users);
+    });
+  }
+
+  subscribeToRedisMessaagesChannel() {
+    redisSubscriber.subscribe("MESSAGES", (message) => {
+      const msgDetails = JSON.parse(message);
+
+      // this.broadCastMessage(msgDetails);
+      this.io.emit(`${msgDetails.chatId}`, {
+        chatId: msgDetails.chatId,
+        message: msgDetails.message,
+        sender: msgDetails.sender,
+        sender_avatar_url: msgDetails.sender_avatar_url,
+        updatedAt: msgDetails.updatedAt,
+      });
+    });
   }
 
   async handleSocketDisconnect(socket) {
     console.log(`A user disconnected -> ${socket.id}`);
 
-    const userID = await redisPublisher.GET(`socketID:${socket.id}`);
-    await redisPublisher.DEL(`socketID:${socket.id}`);
-    await redisPublisher.DEL(`userID:${userID}`);
-    delete this.Users[userID];
-
-    console.log("All connected users -> ", this.Users);
-
-    this.io.emit("online-users", this.Users);
+    redisPublisher.publish("OFFLINE-USERS", socket.id);
   }
 
   async handleSocketJoin(userId, socket) {
     if (userId) {
       console.log("userId -> ", userId);
 
-      const expirationTime = 5 * 60 * 60;
-
-      await redisPublisher.SET(
-        `socketID:${socket.id}`,
-        userId,
-        "EX",
-        expirationTime
+      // redis pub/sub
+      redisPublisher.publish(
+        "ACTIVE-USERS",
+        JSON.stringify({ [userId]: socket.id })
       );
-      await redisPublisher.SET(
-        `userID:${userId}`,
-        socket.id,
-        "EX",
-        expirationTime
-      );
-      this.getAllOnlineUsersFromRedis();
-    } else {
-      console.log("Received null or undefined username");
     }
-    this.Users[userId] = socket.id;
-
-    console.log("All connected users -> ", this.Users);
-
-    this.io.emit("online-users", this.Users);
   }
 
   async handleSocketChatMessage(msgDetails, socket, callback) {
     console.log(`from the socketID: ${socket.id}`);
     console.log("msgDetails -> ", msgDetails);
 
-    const onlineUsers = [];
-    msgDetails.chat_users.forEach((element) => {
-      if (this.Users[element]) onlineUsers.push(this.Users[element]);
-    });
-
-    console.log("onlineUsers -> ", onlineUsers);
-
     // redis pub/sub
-    await redisPublisher.publish("chat_message", JSON.stringify(msgDetails));
+    await redisPublisher.publish("MESSAGES", JSON.stringify(msgDetails));
 
     // Database operations
     const result = await this.handleSaveMessageToDB(msgDetails);
@@ -124,15 +181,9 @@ class SocketHandler {
   async handleSaveMessageToDB(msgDetails) {
     try {
       let chatId = msgDetails.chatId;
-      const chatUsers = msgDetails.chat_users;
-      const senderId = msgDetails.sender_id;
+      const senderId = msgDetails.sender._id;
       const content = msgDetails.message;
 
-      if (!chatId) {
-        const result = await handleCreateChat(chatUsers[0], chatUsers[1]);
-        console.log("result -> ", result);
-        if (result) chatId = result._id;
-      }
       const messageResult = await handleCreateMessage(
         senderId,
         content,

@@ -17,6 +17,7 @@ const handleCreateMessage = async (senderId, content, chatId) => {
       {
         $push: { messages: newMessage._id },
         lastMessage: newMessage._id,
+        $unset: { expireAt: "" }, // unset the expireAt now that we have messages in the chat
       },
       { new: true }
     );

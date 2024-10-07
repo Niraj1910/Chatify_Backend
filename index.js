@@ -33,18 +33,19 @@ app.use(express.json());
 app.use(cookieParser());
 
 const server = createServer(app);
-// initiate the socket connection from socket class
-new SocketHandler(server, {
-  cors: {
-    origin: process.env.PROD_CLIENT_URL || process.env.DEV_CLIENT_URL,
-  },
-});
 
 // call the connectDB
 connectToDB(URI);
 
 // connect to redis
 connectRedis();
+
+// initiate the socket connection from socket class
+new SocketHandler(server, {
+  cors: {
+    origin: process.env.PROD_CLIENT_URL || process.env.DEV_CLIENT_URL,
+  },
+});
 
 // user routes
 app.use("/api", userRouter);

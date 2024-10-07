@@ -2,11 +2,10 @@ import { ChatModel } from "../Model/chatModel.js";
 
 const handleGetChatMessages = async (req, res) => {
   try {
-    const { senderId, recieverId } = req.params;
+    const { chatId } = req.params;
 
-    const chat = await ChatModel.findOne({
-      participants: { $all: [senderId, recieverId] },
-    }).populate({
+    const chat = await ChatModel.findById(chatId).populate({
+      // add chat id value because it is being used on client side
       path: "messages",
       populate: {
         path: "sender",
@@ -14,7 +13,7 @@ const handleGetChatMessages = async (req, res) => {
       },
     });
 
-    if (!chat) return res.status(404).json({ message: "Chat  not found" });
+    if (!chat) return res.status(404).json({ message: "Chat not found" });
 
     return res.status(200).json(chat);
   } catch (error) {
@@ -25,23 +24,60 @@ const handleGetChatMessages = async (req, res) => {
   }
 };
 
-const handleCreateChat = async (senderId, recieverId) => {
+const handleGetUserChat = async (req, res) => {
   try {
-    const existingChat = await ChatModel.findOne({
-      participants: { $all: [senderId, recieverId] },
-    });
+    const { userId } = req.params;
 
-    if (existingChat) return existingChat;
+    const chat = await ChatModel.find({ participants: userId })
+      .select("-messages")
+      .populate("participants", "userName email avatar")
+      .populate({
+        path: "lastMessage",
+        select: "content createdAt ",
+        populate: {
+          path: "sender",
+          select: "userName email avatar",
+        },
+      })
+      .sort("-updatedAt")
+      .exec();
+
+    return res.status(200).json(chat);
+  } catch (error) {
+    console.log(error);
+    return res
+      .status(500)
+      .json({ message: "Internal server error", error: error.message });
+  }
+};
+
+const handleCreateChat = async (req, res) => {
+  const users = req.body.map((user) => user._id);
+
+  console.log("users -> ", users);
+
+  try {
+    const expirationTime = new Date(Date.now() + 5 * 60 * 60 * 1000); // delete the chat after 5 hours if the messages are none
+    // const expirationTime = new Date(Date.now() + 1000); // delete the chat after 5 hours if the messages are none
 
     const chat = await ChatModel.create({
-      participants: [senderId, recieverId],
+      participants: users,
+      isGroupChat: users.length > 2 ? true : false,
+      expireAt: expirationTime,
     });
 
-    return chat;
+    const populatedChat = await ChatModel.findById(chat._id)
+      .populate({
+        path: "participants",
+        select: "userName email avatar ",
+      })
+      .exec();
+
+    return res.status(200).json(populatedChat);
   } catch (error) {
     console.log("Error in handleCreatChat ", error);
     throw new Error("Internal server error");
   }
 };
 
-export { handleGetChatMessages, handleCreateChat };
+export { handleGetChatMessages, handleCreateChat, handleGetUserChat };

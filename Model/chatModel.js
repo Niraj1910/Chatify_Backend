@@ -21,9 +21,13 @@ const chatSchema = new mongoose.Schema(
       ref: "message",
     },
     isGroupChat: { type: Boolean, default: false },
+
+    expireAt: { type: Date, expires: 0 },
   },
   { timestamps: true }
 );
+
+chatSchema.index({ expireAt: 1 }, { expireAfterSeconds: 0 });
 
 const ChatModel = mongoose.model("chat", chatSchema);
 
