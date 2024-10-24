@@ -2,7 +2,6 @@ import dotenv from "dotenv";
 import express from "express";
 import { createServer } from "node:http";
 
-import { Server } from "socket.io";
 import cors from "cors";
 import { connectToDB } from "./Config/db.js";
 import cookieParser from "cookie-parser";
@@ -10,8 +9,7 @@ import { userRouter } from "./Route/userRoute.js";
 import { chatRouter } from "./Route/chatRoute.js";
 
 import { validateToken } from "./services/jwt.js";
-import { handleCreateChat } from "./Controller/chatController.js";
-import { handleCreateMessage } from "./Controller/messageController.js";
+
 import SocketHandler from "./services/socket-io.js";
 import { connectRedis } from "./Config/redis.js";
 

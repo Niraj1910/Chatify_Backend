@@ -6,7 +6,10 @@
   "type": "module",
   "scripts": {
     "start": "node index.js",
-    "dev": "nodemon start"
+    "dev": "cross-env PORT=4000 nodemon index.js",
+    "dev-4001": "cross-env PORT=4001 nodemon index.js",
+    "dev-4002": "cross-env PORT=4002 nodemon index.js",
+    "dev-4003": "cross-env PORT=4003 nodemon index.js"
   },
   "author": "",
   "license": "ISC",
@@ -14,6 +17,7 @@
     "cloudinary": "^2.4.0",
     "cookie-parser": "^1.4.6",
     "cors": "^2.8.5",
+    "cross-env": "^7.0.3",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.2",

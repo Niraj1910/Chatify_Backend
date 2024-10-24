@@ -3,3 +3,7 @@ node_modules/
 
 # Ignore .env files
 .env
+
+# docker files
+Dockerfile
+.dockerignore

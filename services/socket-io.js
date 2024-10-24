@@ -14,8 +14,13 @@ class SocketHandler {
 
     redisSubscriber.subscribe("call-req", (message) => {
       const requestDetails = JSON.parse(message);
-      const { offer, sender, reciever, mediaType } = requestDetails;
-      this.io.emit(`call-req:${reciever}`, { sender, offer, mediaType });
+      const { offer, sender, avatar_url, reciever, mediaType } = requestDetails;
+      this.io.emit(`call-req:${reciever}`, {
+        sender,
+        avatar_url,
+        offer,
+        mediaType,
+      });
     });
 
     redisSubscriber.subscribe("call-reject", (message) => {
@@ -25,8 +30,9 @@ class SocketHandler {
 
     redisSubscriber.subscribe("call-accept", (message) => {
       const answerDetails = JSON.parse(message);
+      const { sender, answer, avatar_url } = answerDetails;
 
-      this.io.emit(`call-accept:${answerDetails.sender}`, answerDetails.answer);
+      this.io.emit(`call-accept:${sender}`, { avatar_url, answer });
     });
 
     redisSubscriber.subscribe("call-end", (to) => {
@@ -52,6 +58,7 @@ class SocketHandler {
         JSON.stringify({
           offer: message.offer,
           sender: message.sender,
+          avatar_url: message.avatar_url,
           reciever: message.reciever,
           mediaType: message.mediaType,
         })
@@ -74,6 +81,7 @@ class SocketHandler {
         JSON.stringify({
           answer: message.answer,
           sender: message.sender,
+          avatar_url: message.avatar_url,
         })
       );
     });
@@ -132,13 +140,17 @@ class SocketHandler {
     redisSubscriber.subscribe("MESSAGES", (message) => {
       const msgDetails = JSON.parse(message);
 
+      console.log("msgDetails from redis ->", msgDetails);
+
+      const date = new Date(msgDetails.updatedAt);
+
       // this.broadCastMessage(msgDetails);
       this.io.emit(`${msgDetails.chatId}`, {
         chatId: msgDetails.chatId,
         message: msgDetails.message,
         sender: msgDetails.sender,
         sender_avatar_url: msgDetails.sender_avatar_url,
-        updatedAt: msgDetails.updatedAt,
+        updatedAt: date.toISOString(),
       });
     });
   }

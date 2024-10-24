@@ -56,6 +56,21 @@ const handleCreateChat = async (req, res) => {
 
   console.log("users -> ", users);
 
+  // const existedChat = await ChatModel.findOne({
+  //   participants: { $all: users },
+  // });
+
+  // if (existedChat) {
+  //   const populatedChat = await ChatModel.findById(existedChat._id)
+  //     .populate({
+  //       path: "participants",
+  //       select: "userName email avatar",
+  //     })
+  //     .exec();
+
+  //   return res.status(200).json(populatedChat);
+  // }
+
   try {
     const expirationTime = new Date(Date.now() + 5 * 60 * 60 * 1000); // delete the chat after 5 hours if the messages are none
     // const expirationTime = new Date(Date.now() + 1000); // delete the chat after 5 hours if the messages are none
