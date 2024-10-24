@@ -21,7 +21,8 @@ const URI = process.env.URI;
 
 app.use(
   cors({
-    origin: process.env.PROD_CLIENT_URL || process.env.DEV_CLIENT_URL,
+    // origin: process.env.PROD_CLIENT_URL || process.env.DEV_CLIENT_URL,
+    origin: "https://chatify-frontend-two.vercel.app/",
     credentials: true,
   })
 );
@@ -42,8 +43,7 @@ connectRedis();
 new SocketHandler(server, {
   cors: {
     // origin: process.env.PROD_CLIENT_URL || process.env.DEV_CLIENT_URL,
-
-    origin: "*",
+    origin: "https://chatify-frontend-two.vercel.app/",
   },
 });
 
