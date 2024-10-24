@@ -41,7 +41,9 @@ connectRedis();
 // initiate the socket connection from socket class
 new SocketHandler(server, {
   cors: {
-    origin: process.env.PROD_CLIENT_URL || process.env.DEV_CLIENT_URL,
+    // origin: process.env.PROD_CLIENT_URL || process.env.DEV_CLIENT_URL,
+
+    origin: "*",
   },
 });
 
