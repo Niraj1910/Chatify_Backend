@@ -27,9 +27,18 @@ app.use(
     credentials: true,
   })
 );
+
+// Handle preflight requests for all routes
+app.options(
+  "*",
+  cors({
+    origin: process.env.PROD_CLIENT_URL || process.env.DEV_CLIENT_URL,
+    credentials: true,
+  })
+);
+
 app.use(express.static("public"));
 app.use(express.json());
-// app.use(express.urlencoded(true));
 app.use(cookieParser());
 
 const server = createServer(app);
