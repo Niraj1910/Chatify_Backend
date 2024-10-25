@@ -57,6 +57,11 @@ new SocketHandler(server, {
   },
 });
 
+// added a check rout
+app.get("/", (req, res) => {
+  res.send("hello from chatify server");
+});
+
 // user routes
 app.use("/api", userRouter);
 
